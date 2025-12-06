@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package hibernation.v1;
+
+option go_package = "github.com/xataio/cnpg-i-scale-to-zero/api/hibernation/v1";
+
+// HibernationService handles hibernation requests for clusters.
+// When configured, the sidecar calls this service instead of directly
+// annotating the Cluster resource
+service HibernationService {
+  // HibernateCluster triggers hibernation for a cluster
+  rpc HibernateCluster(HibernateClusterRequest) returns (HibernateClusterResponse);
+}
+
+// HibernateClusterRequest contains the information needed to hibernate a cluster
+message HibernateClusterRequest {
+  // The Kubernetes namespace of the cluster
+  string namespace = 1;
+  // The name of the cluster
+  string name = 2;
+}
+
+// HibernateClusterResponse contains the result of a hibernation request
+message HibernateClusterResponse {
+  // Whether the hibernation was successful
+  bool success = 1;
+  // A message providing additional details (e.g. error information)
+  string message = 2;
+}
