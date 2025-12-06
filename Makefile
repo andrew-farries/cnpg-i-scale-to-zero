@@ -3,10 +3,18 @@
 # Version detection
 VERSION ?= $(shell git describe --tags --dirty 2>/dev/null || echo "dev")
 
+# Tools
+BUF := go run github.com/bufbuild/buf/cmd/buf@latest
+
 .PHONY: help
 help: ## Show this help message
 	@echo "Available targets:"
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
+.PHONY: generate
+generate: ## Generate protobuf code
+	@echo "Generating protobuf code..."
+	@$(BUF) generate
 
 .PHONY: lint
 lint: ## Lint source code
