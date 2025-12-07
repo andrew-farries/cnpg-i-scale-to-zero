@@ -52,7 +52,14 @@ func Start(ctx context.Context) error {
 		Name:      clusterName,
 	}
 	clusterClient := newClusterClient(c, clusterKey, defaultRefreshInterval)
-	hibernator := NewClusterHibernator(clusterClient)
+
+	hibernator, cleanup, err := newHibernator(ctx, clusterClient)
+	if err != nil {
+		return err
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
 
 	scaleToZeroSidecar, err := newScaleToZero(ctx, config{
 		podName:    podName,
@@ -66,6 +73,32 @@ func Start(ctx context.Context) error {
 	defer scaleToZeroSidecar.Stop(ctx)
 
 	return err
+}
+
+// newHibernator creates a Hibernator based on configuration. If
+// HIBERNATION_GRPC_ADDR is set, it creates a GRPCHibernator otherwise it
+// creates a ClusterHibernator. Returns a cleanup function that should be
+// called when the hibernator is no longer needed (may be nil).
+func newHibernator(ctx context.Context, clusterClient clusterClient) (Hibernator, func(), error) {
+	setupLog := log.FromContext(ctx)
+
+	hibernationGRPCAddr := viper.GetString("hibernation-grpc-addr")
+	if hibernationGRPCAddr != "" {
+		setupLog.Info("Using GRPC hibernator", "address", hibernationGRPCAddr)
+		grpcHibernator, err := NewGRPCHibernator(hibernationGRPCAddr)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create GRPC hibernator: %w", err)
+		}
+		cleanup := func() {
+			if err := grpcHibernator.Close(); err != nil {
+				setupLog.Error(err, "failed to close GRPC hibernator connection")
+			}
+		}
+		return grpcHibernator, cleanup, nil
+	}
+
+	setupLog.Info("Using cluster hibernator")
+	return NewClusterHibernator(clusterClient), nil, nil
 }
 
 // generateScheme creates a runtime.Scheme object with all the
