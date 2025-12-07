@@ -12,21 +12,20 @@ import (
 	"github.com/cloudnative-pg/machinery/pkg/log"
 	_ "github.com/lib/pq"
 	"github.com/xataio/cnpg-i-scale-to-zero/internal/postgres"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // scaleToZero manages the scale to zero functionality for a CloudNativePG
 // cluster.
 type scaleToZero struct {
 	client           clusterClient
+	hibernator       Hibernator
 	pgQuerier        postgres.Querier
 	pgQuerierFactory func(ctx context.Context, url string) (postgres.Querier, error)
 
-	currentPodName string
-	clusterName    string
+	currentPodName   string
+	clusterName      string
+	clusterNamespace string
 
 	checkInterval time.Duration
 	lastActive    time.Time
@@ -56,12 +55,14 @@ const (
 var errReplicaInstance = errors.New("current pod is not the primary instance")
 
 // newScaleToZero creates a new scaleToZero instance with the provided configuration and client.
-func newScaleToZero(ctx context.Context, cfg config, client client.Client) (*scaleToZero, error) {
+func newScaleToZero(ctx context.Context, cfg config, client clusterClient, hibernator Hibernator) (*scaleToZero, error) {
 	s := &scaleToZero{
-		client:         newClusterClient(client, cfg.clusterKey, defaultRefreshInterval),
-		currentPodName: cfg.podName,
-		clusterName:    cfg.clusterKey.Name,
-		checkInterval:  defaultCheckInterval,
+		client:           client,
+		hibernator:       hibernator,
+		currentPodName:   cfg.podName,
+		clusterName:      cfg.clusterKey.Name,
+		clusterNamespace: cfg.clusterKey.Namespace,
+		checkInterval:    defaultCheckInterval,
 		pgQuerierFactory: func(ctx context.Context, url string) (postgres.Querier, error) {
 			return postgres.NewConnPool(ctx, url)
 		},
@@ -120,19 +121,13 @@ func (s *scaleToZero) Start(ctx context.Context) error {
 			}
 
 			if !isActive {
-				if err := s.hibernate(ctx); err != nil {
+				if err := s.hibernator.Hibernate(ctx, s.clusterNamespace, s.clusterName); err != nil {
 					contextLogger.Error(err, "hibernation failed")
 					// we stop the scale to zero sidecar if this is not the primary instance
 					if errors.Is(err, errReplicaInstance) {
 						return nil
 					}
-					// if hibernation fails, do not try pausing the scheduled backup
 					continue
-				}
-
-				// pause the scheduled backup if the cluster is hibernated
-				if err := s.pauseScheduledBackup(ctx); err != nil {
-					contextLogger.Error(err, "failed to pause scheduled backup")
 				}
 			}
 		}
@@ -218,42 +213,6 @@ func (s *scaleToZero) openConnections(ctx context.Context) (int, error) {
 	return count, nil
 }
 
-// hibernate attempts to hibernate the cluster.
-// If the current pod is not the primary instance, it returns an error.
-// If the cluster is not healthy, it skips hibernation.
-// If the cluster is already hibernated, it does nothing.
-// If successful, it adds the hibernation annotation to the cluster.
-// Returns an error if the operation fails.
-func (s *scaleToZero) hibernate(ctx context.Context) error {
-	cluster, err := s.client.getCluster(ctx, forceUpdate)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve cluster: %w", err)
-	}
-
-	if cluster.Status.Phase != healthyClusterStatus {
-		log.FromContext(ctx).Info("cluster is not healthy, skipping hibernation", "status", cluster.Status.Phase)
-		return nil
-	}
-	if cluster.Annotations != nil && cluster.Annotations[hibernationAnnotation] == "on" {
-		log.FromContext(ctx).Info("cluster is already hibernated")
-		return nil
-	}
-
-	if cluster.Annotations == nil {
-		cluster.Annotations = make(map[string]string)
-	}
-
-	// hibernate the cluster by adding the annotation
-	cluster.Annotations[hibernationAnnotation] = "on"
-	log.FromContext(ctx).Info("annotating cluster for hibernation", "pod", s.currentPodName, "cluster", cluster.Name)
-	if err := s.client.updateCluster(ctx, cluster); err != nil {
-		log.FromContext(ctx).Error(err, "failed to annotate cluster for hibernation")
-		return err
-	}
-
-	return nil
-}
-
 // getClusterScaleToZeroConfig retrieves the scale to zero configuration from
 // the cluster annotations. It returns the enabled status and inactivity
 // minutes. If the annotation is not set, it uses default values.
@@ -278,24 +237,4 @@ func (s *scaleToZero) getClusterScaleToZeroConfig(ctx context.Context, cluster *
 		enabled:           enabled,
 		inactivityMinutes: inactivityMinutes,
 	}
-}
-
-func (s *scaleToZero) pauseScheduledBackup(ctx context.Context) error {
-	scheduledBackup, err := s.client.getClusterScheduledBackup(ctx)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			log.FromContext(ctx).Debug("scheduled backup not found, skipping pause")
-			return nil
-		}
-
-		return fmt.Errorf("failed to get scheduled backup for cluster %s: %w", s.clusterName, err)
-	}
-
-	log.FromContext(ctx).Info("pausing scheduled backup", "cluster", s.clusterName)
-	scheduledBackup.Spec.Suspend = ptr.To(true)
-	if err := s.client.updateClusterScheduledBackup(ctx, scheduledBackup); err != nil {
-		return fmt.Errorf("failed to update scheduled backup for cluster %s: %w", s.clusterName, err)
-	}
-
-	return nil
 }

@@ -47,13 +47,17 @@ func Start(ctx context.Context) error {
 		return err
 	}
 
+	clusterKey := types.NamespacedName{
+		Namespace: namespace,
+		Name:      clusterName,
+	}
+	clusterClient := newClusterClient(c, clusterKey, defaultRefreshInterval)
+	hibernator := NewClusterHibernator(clusterClient)
+
 	scaleToZeroSidecar, err := newScaleToZero(ctx, config{
-		podName: podName,
-		clusterKey: types.NamespacedName{
-			Namespace: namespace,
-			Name:      clusterName,
-		},
-	}, c)
+		podName:    podName,
+		clusterKey: clusterKey,
+	}, clusterClient, hibernator)
 	if err != nil {
 		return fmt.Errorf("failed to create scale to zero sidecar: %w", err)
 	}
