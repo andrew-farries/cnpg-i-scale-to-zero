@@ -45,6 +45,8 @@ spec:
           value: "64Mi"
         - name: SIDECAR_MEMORY_LIMIT
           value: "64Mi"
+        - name: HIBERNATION_GRPC_ADDR
+          value: foo:5002
         envFrom:
         # use a secret instead of an env variable to configure the sidecar image
         # so that the image mapping works out of the box
