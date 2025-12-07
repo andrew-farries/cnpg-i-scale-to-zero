@@ -46,9 +46,6 @@ type config struct {
 }
 
 const (
-	healthyClusterStatus  = "Cluster in healthy state"
-	hibernationAnnotation = "cnpg.io/hibernation"
-
 	scaleToZeroEnabledAnnotation = "xata.io/scale-to-zero-enabled"
 	inactivityMinutesAnnotation  = "xata.io/scale-to-zero-inactivity-minutes"
 
