@@ -52,6 +52,7 @@ func newCmd() *cobra.Command {
 	_ = viper.BindEnv("namespace", "NAMESPACE")
 	_ = viper.BindEnv("cluster-name", "CLUSTER_NAME")
 	_ = viper.BindEnv("pod-name", "POD_NAME")
+	_ = viper.BindEnv("hibernation-grpc-addr", "HIBERNATION_GRPC_ADDR")
 
 	return cmd
 }

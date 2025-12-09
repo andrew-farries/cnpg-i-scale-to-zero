@@ -12,44 +12,64 @@ func TestNew(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                 string
-		sidecarImage         string
-		logLevel             string
-		resourceConfig       *ResourceConfig
-		expectedSidecarImage string
-		expectedLogLevel     string
+		name                        string
+		sidecarImage                string
+		logLevel                    string
+		resourceConfig              *ResourceConfig
+		hibernationGRPCAddr         string
+		expectedSidecarImage        string
+		expectedLogLevel            string
+		expectedHibernationGRPCAddr string
 	}{
 		{
-			name:                 "custom values",
-			sidecarImage:         "custom/image:tag",
-			logLevel:             "debug",
-			resourceConfig:       &ResourceConfig{CPURequest: "100m", CPULimit: "500m", MemoryRequest: "128Mi", MemoryLimit: "256Mi"},
-			expectedSidecarImage: "custom/image:tag",
-			expectedLogLevel:     "debug",
+			name:                        "custom values",
+			sidecarImage:                "custom/image:tag",
+			logLevel:                    "debug",
+			resourceConfig:              &ResourceConfig{CPURequest: "100m", CPULimit: "500m", MemoryRequest: "128Mi", MemoryLimit: "256Mi"},
+			hibernationGRPCAddr:         "",
+			expectedSidecarImage:        "custom/image:tag",
+			expectedLogLevel:            "debug",
+			expectedHibernationGRPCAddr: "",
 		},
 		{
-			name:                 "default values",
-			sidecarImage:         "",
-			logLevel:             "",
-			resourceConfig:       nil,
-			expectedSidecarImage: defaultSidecarImage,
-			expectedLogLevel:     defaultLogLevel,
+			name:                        "default values",
+			sidecarImage:                "",
+			logLevel:                    "",
+			resourceConfig:              nil,
+			hibernationGRPCAddr:         "",
+			expectedSidecarImage:        defaultSidecarImage,
+			expectedLogLevel:            defaultLogLevel,
+			expectedHibernationGRPCAddr: "",
 		},
 		{
-			name:                 "empty sidecar image",
-			sidecarImage:         "",
-			logLevel:             "warn",
-			resourceConfig:       &ResourceConfig{CPURequest: "50m"},
-			expectedSidecarImage: defaultSidecarImage,
-			expectedLogLevel:     "warn",
+			name:                        "empty sidecar image",
+			sidecarImage:                "",
+			logLevel:                    "warn",
+			resourceConfig:              &ResourceConfig{CPURequest: "50m"},
+			hibernationGRPCAddr:         "",
+			expectedSidecarImage:        defaultSidecarImage,
+			expectedLogLevel:            "warn",
+			expectedHibernationGRPCAddr: "",
 		},
 		{
-			name:                 "empty log level",
-			sidecarImage:         "another/image:latest",
-			logLevel:             "",
-			resourceConfig:       nil,
-			expectedSidecarImage: "another/image:latest",
-			expectedLogLevel:     defaultLogLevel,
+			name:                        "empty log level",
+			sidecarImage:                "another/image:latest",
+			logLevel:                    "",
+			resourceConfig:              nil,
+			hibernationGRPCAddr:         "",
+			expectedSidecarImage:        "another/image:latest",
+			expectedLogLevel:            defaultLogLevel,
+			expectedHibernationGRPCAddr: "",
+		},
+		{
+			name:                        "with hibernation grpc addr",
+			sidecarImage:                "custom/image:tag",
+			logLevel:                    "debug",
+			resourceConfig:              nil,
+			hibernationGRPCAddr:         "localhost:9090",
+			expectedSidecarImage:        "custom/image:tag",
+			expectedLogLevel:            "debug",
+			expectedHibernationGRPCAddr: "localhost:9090",
 		},
 	}
 
@@ -57,10 +77,11 @@ func TestNew(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cfg := New(tt.sidecarImage, tt.logLevel, tt.resourceConfig)
+			cfg := New(tt.sidecarImage, tt.logLevel, tt.resourceConfig, tt.hibernationGRPCAddr)
 			require.Equal(t, tt.expectedSidecarImage, cfg.SidecarImage)
 			require.Equal(t, tt.expectedLogLevel, cfg.LogLevel)
 			require.Equal(t, tt.resourceConfig, cfg.SidecarResources)
+			require.Equal(t, tt.expectedHibernationGRPCAddr, cfg.HibernationGRPCAddr)
 		})
 	}
 }

@@ -13,6 +13,9 @@ type Config struct {
 	LogLevel     string
 	// SidecarResources defines resource requirements for the sidecar container
 	SidecarResources *ResourceConfig
+	// HibernationGRPCAddr is the address of the external gRPC hibernation
+	// service. If empty, the sidecar will use the default ClusterHibernator.
+	HibernationGRPCAddr string
 }
 
 // ResourceConfig defines resource configuration for a container
@@ -36,7 +39,7 @@ const (
 
 // New creates a new Config instance with the provided parameters.
 // Environment variables are used to override defaults if the parameters are empty.
-func New(sidecarImage, logLevel string, resourceConfig *ResourceConfig) *Config {
+func New(sidecarImage, logLevel string, resourceConfig *ResourceConfig, hibernationGRPCAddr string) *Config {
 	if sidecarImage == "" {
 		sidecarImage = defaultSidecarImage
 	}
@@ -46,9 +49,10 @@ func New(sidecarImage, logLevel string, resourceConfig *ResourceConfig) *Config 
 	}
 
 	return &Config{
-		SidecarImage:     sidecarImage,
-		LogLevel:         logLevel,
-		SidecarResources: resourceConfig,
+		SidecarImage:        sidecarImage,
+		LogLevel:            logLevel,
+		SidecarResources:    resourceConfig,
+		HibernationGRPCAddr: hibernationGRPCAddr,
 	}
 }
 

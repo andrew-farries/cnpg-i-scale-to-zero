@@ -18,17 +18,19 @@ import (
 // Implementation is the implementation of the lifecycle handler
 type Implementation struct {
 	lifecycle.UnimplementedOperatorLifecycleServer
-	logLevel         string
-	sidecarImage     string
-	sidecarResources corev1.ResourceRequirements
+	logLevel            string
+	sidecarImage        string
+	sidecarResources    corev1.ResourceRequirements
+	hibernationGRPCAddr string
 }
 
 // NewImplementation creates a new lifecycle implementation with the given config
 func NewImplementation(cfg *config.Config) *Implementation {
 	return &Implementation{
-		logLevel:         cfg.LogLevel,
-		sidecarImage:     cfg.SidecarImage,
-		sidecarResources: cfg.SidecarResources.ToResourceRequirements(),
+		logLevel:            cfg.LogLevel,
+		sidecarImage:        cfg.SidecarImage,
+		sidecarResources:    cfg.SidecarResources.ToResourceRequirements(),
+		hibernationGRPCAddr: cfg.HibernationGRPCAddr,
 	}
 }
 
@@ -103,27 +105,36 @@ func (impl Implementation) reconcileMetadata(
 
 	mutatedPod := pod.DeepCopy()
 
-	sidecarContainer := &corev1.Container{
-		Name:  "scale-to-zero",
-		Image: impl.sidecarImage,
-		Env: []corev1.EnvVar{
-			{
-				Name:  "NAMESPACE",
-				Value: pod.Namespace,
-			},
-			{
-				Name:  "CLUSTER_NAME",
-				Value: cluster.Name,
-			},
-			{
-				Name:  "POD_NAME",
-				Value: pod.Name,
-			},
-			{
-				Name:  "LOG_LEVEL",
-				Value: impl.logLevel,
-			},
+	envVars := []corev1.EnvVar{
+		{
+			Name:  "NAMESPACE",
+			Value: pod.Namespace,
 		},
+		{
+			Name:  "CLUSTER_NAME",
+			Value: cluster.Name,
+		},
+		{
+			Name:  "POD_NAME",
+			Value: pod.Name,
+		},
+		{
+			Name:  "LOG_LEVEL",
+			Value: impl.logLevel,
+		},
+	}
+
+	if impl.hibernationGRPCAddr != "" {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "HIBERNATION_GRPC_ADDR",
+			Value: impl.hibernationGRPCAddr,
+		})
+	}
+
+	sidecarContainer := &corev1.Container{
+		Name:      "scale-to-zero",
+		Image:     impl.sidecarImage,
+		Env:       envVars,
 		Resources: impl.sidecarResources,
 	}
 

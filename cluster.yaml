@@ -1,0 +1,28 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: example-cluster-scale-to-zero-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cnpg-scale-to-zero-sidecar-role
+subjects:
+- kind: ServiceAccount
+  name: example-cluster # CloudNativePG creates a service account with the same name as the cluster
+  namespace: clusters
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: example-cluster
+  namespace: clusters
+  annotations:
+    xata.io/scale-to-zero-enabled: "true"
+    xata.io/scale-to-zero-inactivity-minutes: "1"
+spec:
+  instances: 1
+  enableSuperuserAccess: true
+  plugins:
+    - name: cnpg-i-scale-to-zero.xata.io
+  storage:
+    size: 1Gi

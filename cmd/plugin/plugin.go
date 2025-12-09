@@ -35,6 +35,7 @@ func main() {
 	_ = viper.BindEnv("sidecar-cpu-limit", "SIDECAR_CPU_LIMIT")
 	_ = viper.BindEnv("sidecar-memory-request", "SIDECAR_MEMORY_REQUEST")
 	_ = viper.BindEnv("sidecar-memory-limit", "SIDECAR_MEMORY_LIMIT")
+	_ = viper.BindEnv("hibernation-grpc-addr", "HIBERNATION_GRPC_ADDR")
 
 	logFlags.AddFlags(rootCmd.PersistentFlags())
 
@@ -50,7 +51,12 @@ func main() {
 func newCmd() *cobra.Command {
 	cmd := http.CreateMainCmd(identity.Implementation{}, func(server *grpc.Server) error {
 		// Create config at execution time to ensure viper has loaded environment variables
-		cfg := config.New(viper.GetString("sidecar-image"), viper.GetString("log-level"), newResourceConfig())
+		cfg := config.New(
+			viper.GetString("sidecar-image"),
+			viper.GetString("log-level"),
+			newResourceConfig(),
+			viper.GetString("hibernation-grpc-addr"),
+		)
 
 		// Register the declared implementations
 		lifecycle.RegisterOperatorLifecycleServer(server, lifecycleImpl.NewImplementation(cfg))
